@@ -4,8 +4,8 @@ import ctypes
 import argparse
 import multiprocessing
 from scipy import signal
-from scipy.io.wavfile import read
 
+from lib.audio import af_to_array, get_sr
 from lib.raw2ivec import *
 from lib.tools import Tools
 from lib.tools import loginfo, logwarning
@@ -148,11 +148,11 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, wav_suffix='.wav',
     loginfo('[wav2ivec.process_file] Processing file {} ...'.format(file_name))
     ubm_weights, ubm_means, ubm_covs, ubm_norm, gmm_model, numg, dimf, v, mvvt = model
     wav = os.path.join(wav_dir, file_name) + wav_suffix
-    rate, sig = read(wav)
-    if rate != 8000:
+    if get_sr(wav) != 8000:
         logwarning('[wav2ivec.process_file] '
-                   'The input file is expected to be in 8000 Hz, got {} Hz instead, resampling.'.format(rate))
-        sig = signal.resample(sig, 8000)
+                   'The input file is expected to be in 8000 Hz, got {} Hz '
+                   'instead, resampling.'.format(rate))
+    rate, sig = af_to_array(wav, target_sr=8000)
     if ADDDITHER > 0.0:
         loginfo('[wav2ivec.process_file] Adding dither ...')
         sig = features.add_dither(sig, ADDDITHER)
@@ -173,8 +173,11 @@ def set_mkl(num_cores=1):
         :param num_cores: number of cores
         :type num_cores: int
     """
-    mkl_rt = ctypes.CDLL('libmkl_rt.so')
-    mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(num_cores)))
+    try:
+        mkl_rt = ctypes.CDLL('libmkl_rt.so')
+        mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(num_cores)))
+    except OSError:
+        pass # TODO: Warn. Well, really we should not assume MKL at all.
 
 
 def main(argv):

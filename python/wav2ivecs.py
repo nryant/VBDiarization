@@ -4,8 +4,8 @@ import math
 import argparse
 import multiprocessing
 from scipy import signal
-from scipy.io.wavfile import read
 
+from lib.audio import af_to_array, get_sr
 from lib.raw2ivec import *
 from lib.ivec import IvecSet
 from lib.tools import loginfo, logwarning, Tools
@@ -14,8 +14,8 @@ from lib.tools import loginfo, logwarning, Tools
 from wav2ivec import init, get_ivec, get_vad, get_mfccs, set_mkl
 
 
-def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size, max_size,
-                 tolerance, wav_suffix='.wav', vad_suffix='.lab.gz'):
+def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
+                 max_size, tolerance, wav_suffix='.wav', vad_suffix='.lab.gz'):
     """ Extract i-vectors from wav file.
 
         :param wav_dir: directory with wav files
@@ -44,11 +44,15 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size, max_size
     if len(file_name.split()) > 1:
         file_name = file_name.split()[0]
     wav = os.path.join(wav_dir, file_name) + wav_suffix
-    rate, sig = read(wav)
+    rate = get_sr(wav)
+    #
+    loginfo(wav)
+    #
     if rate != 8000:
-        logwarning('[wav2ivecs.process_file] '
-                   'The input file is expected to be in 8000 Hz, got {} Hz instead, resampling.'.format(rate))
-        sig = signal.resample(sig, 8000)
+        logwarning('[wav2ivec.process_file] '
+                   'The input file is expected to be in 8000 Hz, got {} Hz '
+                   'instead, resampling.'.format(rate))
+    rate, sig = af_to_array(wav, target_sr=8000)
     if ADDDITHER > 0.0:
         loginfo('[wav2ivecs.process_file] Adding dither ...')
         sig = features.add_dither(sig, ADDDITHER)
@@ -203,8 +207,10 @@ def main(argv):
     set_mkl(args.num_cores)
     files = [line.rstrip('\n') for line in open(args.input_list)]
     for f in files:
-        process_file(args.audio_dir, args.vad_dir, args.out_dir, f, models, args.min_window_size, args.max_window_size,
-                     args.vad_tolerance, wav_suffix=args.wav_suffix, vad_suffix=args.vad_suffix)
+        process_file(args.audio_dir, args.vad_dir, args.out_dir, f, models,
+                     args.min_window_size, args.max_window_size,
+                     args.vad_tolerance, wav_suffix=args.wav_suffix,
+                     vad_suffix=args.vad_suffix)
 
     return 0
 

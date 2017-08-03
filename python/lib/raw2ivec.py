@@ -210,7 +210,7 @@ def main(argv):
 
             if os.path.isfile(wav_file):
                 print '  Reading wave file from ' + wav_file,
-                rate, sig = spiowav.read(wav_file)
+                rate, sig = af_to_array(wav_file, target_sr=8000)
 
                 if rate != 8000:
                     raise Exception(
