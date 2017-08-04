@@ -232,10 +232,10 @@ def main(argv):
         help='V Model file')
     parser.add_argument(
         '--min-window-size', dest='min_window_size', type=int, nargs=None, default=1000,
-        help='minimal window size (ms) for i-vector extraction (Default: %(default)s)')
+        help='minimal window size (ms) for i-vector extraction (Default: %(default)s ms)')
     parser.add_argument(
         '--max-window-size', dest='max_window_size', type=int, nargs=None, default=2000,
-        help='maximal window size (ms) for i-vector extraction (Default: %(default)s)')
+        help='maximal window size (ms) for i-vector extraction (Default: %(default)s ms)')
     parser.add_argument(
         '--sad-tolerance', dest='sad_tolerance', type=int, nargs=None, default=5,
         help='silence tolerance in ms (Default: %(default)s ms)')
