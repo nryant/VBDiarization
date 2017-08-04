@@ -3,9 +3,6 @@ import errno
 import os
 
 import numpy as np
-import scipy.io.wavfile as spiowav
-
-import energy_vad as evad
 
 
 ################################################################################
