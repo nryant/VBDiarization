@@ -2,7 +2,6 @@
 
 import ctypes
 import argparse
-import multiprocessing
 from scipy import signal
 
 from lib.audio import af_to_array, get_sr
@@ -21,7 +20,7 @@ def init(ubm_file, v_file):
         :returns: loaded and initialized models
         :rtype: tuple
     """
-    loginfo('[wav2ivec.init] Loading UBM file ...')
+#    loginfo('[wav2ivec.init] Loading UBM file ...')
     ubm_weights, ubm_means, ubm_covs = load_ubm(ubm_file)
     gmm_model = gmm.gmm_eval_prep(ubm_weights, ubm_means, ubm_covs)
     numg = ubm_means.shape[0]
@@ -30,7 +29,7 @@ def init(ubm_file, v_file):
         ubm_norm = 1 / np.sqrt(ubm_covs)
     else:
         ubm_norm = None
-    loginfo('[wav2ivec.init] Loading V model file ...')
+#    loginfo('[wav2ivec.init] Loading V model file ...')
     v = np.load(v_file)
     mvvt = iv.compute_VtV(v, numg)
     return ubm_weights, ubm_means, ubm_covs, ubm_norm, gmm_model, numg, dimf, v, mvvt
@@ -44,7 +43,7 @@ def get_mfccs(sig):
         :returns: MFCCs
         :rtype: numpy.array
     """
-    loginfo('[wav2ivec.get_mfccs] Extracting MFCC features ...')
+#    loginfo('[wav2ivec.get_mfccs] Extracting MFCC features ...')
     fbank_mx = features.mel_fbank_mx(winlen_nfft=WINDOWSIZE / SOURCERATE,
                                      fs=fs,
                                      NUMCHANS=NUMCHANS,
@@ -65,10 +64,10 @@ def get_mfccs(sig):
                             SILFLOOR=50.0,
                             USEHAMMING=True)
 
-    loginfo('[wav2ivec.get_mfccs] Adding derivatives ...')
+#    loginfo('[wav2ivec.get_mfccs] Adding derivatives ...')
     fea = features.add_deriv(fea, (deltawindow, accwindow))
 
-    loginfo('[wav2ivec.get_mfccs] Reshaping to SFeaCat conventions ...')
+#    loginfo('[wav2ivec.get_mfccs] Reshaping to SFeaCat conventions ...')
     return fea.reshape(fea.shape[0], 3, -1).transpose((0, 2, 1)).reshape(fea.shape[0], -1)
 
 
@@ -89,17 +88,17 @@ def get_vad(vad_dir, file_name, vad_suffix, sig, fea):
         :rtype: list
     """
     if vad_dir is None:
-        loginfo('[wav2ivec.get_vad] Computing VAD ...')
+        #loginfo('[wav2ivec.get_vad] Computing VAD ...')
         return compute_vad(sig, win_length=WINDOWSIZE / SOURCERATE,
                            win_overlap=(WINDOWSIZE - TARGETRATE) / SOURCERATE)[:len(fea)]
     else:
         vad = os.path.join(vad_dir, file_name) + vad_suffix
-        loginfo('[wav2ivec.get_vad] Loading VAD from file {} ...'.format(file_name))
+        #loginfo('[wav2ivec.get_vad] Loading VAD from file {} ...'.format(file_name))
         return load_vad_lab_as_bool_vec(vad)[:len(fea)]
 
 
 def get_ivec(fea, numg, dimf, gmm_model, ubm_means, ubm_norm, v, mvvt):
-    loginfo('[wav2ivec.get_ivec] Applying floating CMVN ...')
+    #loginfo('[wav2ivec.get_ivec] Applying floating CMVN ...')
     try:
         fea = features.cmvn_floating(fea, cmvn_lc, cmvn_rc, unbiased=True)
     except ValueError:
@@ -110,7 +109,7 @@ def get_ivec(fea, numg, dimf, gmm_model, ubm_means, ubm_norm, v, mvvt):
     n = np.zeros(numg, dtype=np.float32)
     f = np.zeros((numg, dimf), dtype=np.float32)
 
-    loginfo('[wav2ivec.get_ivec] Computing statistics ...')
+    #loginfo('[wav2ivec.get_ivec] Computing statistics ...')
     seq_data = split_seq(range(n_data), 1000)
     for i in range(len(seq_data)):
         dd = fea[seq_data[i], :]
@@ -123,7 +122,7 @@ def get_ivec(fea, numg, dimf, gmm_model, ubm_means, ubm_norm, v, mvvt):
     f = row(f.astype(v.dtype))
     n = row(n.astype(v.dtype))
 
-    loginfo('[wav2ivec.get_ivec] Computing i-vector ...')
+#    loginfo('[wav2ivec.get_ivec] Computing i-vector ...')
     return iv.estimate_i(n, f, v, mvvt).T
 
 
@@ -145,7 +144,7 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, wav_suffix='.wav',
         :param vad_suffix: suffix of vad files
         :type vad_suffix
     """
-    loginfo('[wav2ivec.process_file] Processing file {} ...'.format(file_name))
+#    loginfo('[wav2ivec.process_file] Processing file {} ...'.format(file_name))
     ubm_weights, ubm_means, ubm_covs, ubm_norm, gmm_model, numg, dimf, v, mvvt = model
     wav = os.path.join(wav_dir, file_name) + wav_suffix
     if get_sr(wav) != 8000:
@@ -154,7 +153,7 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, wav_suffix='.wav',
                    'instead, resampling.'.format(rate))
     rate, sig = af_to_array(wav, target_sr=8000)
     if ADDDITHER > 0.0:
-        loginfo('[wav2ivec.process_file] Adding dither ...')
+        #loginfo('[wav2ivec.process_file] Adding dither ...')
         sig = features.add_dither(sig, ADDDITHER)
 
     fea = get_mfccs(sig)
@@ -165,19 +164,6 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, wav_suffix='.wav',
     if w is not None:
         Tools.mkdir_p(os.path.join(out_dir, os.path.dirname(file_name)))
         np.save(os.path.join(out_dir, file_name), w)
-
-
-def set_mkl(num_cores=1):
-    """ Set number of cores for mkl library.
-
-        :param num_cores: number of cores
-        :type num_cores: int
-    """
-    try:
-        mkl_rt = ctypes.CDLL('libmkl_rt.so')
-        mkl_rt.mkl_set_num_threads(ctypes.byref(ctypes.c_int(num_cores)))
-    except OSError:
-        pass # TODO: Warn. Well, really we should not assume MKL at all.
 
 
 def main(argv):
@@ -198,16 +184,11 @@ def main(argv):
                         action='store', dest='ubm_file', type=str, required=True)
     parser.add_argument('--v-file', help='V Model file',
                         action='store', dest='v_file', type=str, required=True)
-    parser.add_argument('-j', '--num-cores', help='number of processor cores to use',
-                        action='store', dest='num_cores', type=int, required=False)
-    parser.set_defaults(num_cores=multiprocessing.cpu_count())
     parser.set_defaults(wav_suffix='.wav')
     parser.set_defaults(vad_suffix='.lab.gz')
     args = parser.parse_args()
 
     models = init(args.ubm_file, args.v_file)
-    loginfo('[wav2ivecs.main] Setting {} processor cores for the MKL library ...'.format(args.num_cores))
-    set_mkl(args.num_cores)
     files = [line.rstrip('\n') for line in open(args.input_list)]
     for f in files:
         process_file(args.audio_dir, args.vad_dir, args.out_dir, f, models,

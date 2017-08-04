@@ -1,11 +1,11 @@
 #! /usr/bin/env python
-
+from __future__ import print_function
+from __future__ import unicode_literals
 import os
 import sys
 import argparse
 import multiprocessing
 
-from wav2ivecs import set_mkl
 from lib.tools import loginfo
 from lib.diarization import Diarization
 
@@ -33,8 +33,14 @@ def main(argv):
         parser.print_help()
         sys.stderr.write('at least one of --reference and --out-dir must be specified' + os.linesep)
 
-    loginfo('[diar.main] Setting {} processor cores for the MKL library ...'.format(args.num_cores))
-    set_mkl(args.num_cores)
+    loginfo('[diar.main] Using {} threads...'.format(args.num_cores))
+    # TODO: Currently, num_cores has no effect. Consider refactoring the
+    #       code in lib.diarization so that clutering is done in parallel in
+    #       num_cores threads. This is probably a better idea than using
+    #       multithreading in the BLAS or with the actual k-means in sklearn
+    #       (passing n_jobs to KMeans will ensure that each initialization is
+    #       processed in a separate thread...well, not actually a thread...
+    #       stupid GIL...abuse of ellipses)
     diar = Diarization(args.input_list, args.norm_list, args.ivecs_dir, args.out_dir,  args.plda_model_dir)
     scores = diar.score()
     if args.reference is not None:

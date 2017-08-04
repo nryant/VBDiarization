@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-
+from __future__ import print_function
+from __future__ import unicode_literals
 import math
 import argparse
 import multiprocessing
@@ -9,9 +10,9 @@ from lib.audio import af_to_array, get_sr
 from lib.raw2ivec import *
 from lib.ivec import IvecSet
 from lib.tools import loginfo, logwarning, Tools
+from lib.utils import partition
 
-
-from wav2ivec import init, get_ivec, get_vad, get_mfccs, set_mkl
+from wav2ivec import init, get_ivec, get_vad, get_mfccs
 
 
 def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
@@ -54,7 +55,7 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
                    'instead, resampling.'.format(rate))
     rate, sig = af_to_array(wav, target_sr=8000)
     if ADDDITHER > 0.0:
-        loginfo('[wav2ivecs.process_file] Adding dither ...')
+        #loginfo('[wav2ivecs.process_file] Adding dither ...')
         sig = features.add_dither(sig, ADDDITHER)
 
     fea = get_mfccs(sig)
@@ -64,13 +65,37 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
     ivec_set.name = file_name
     for seg in get_segments(vad, min_size, max_size, tolerance):
         start, end = get_num_segments(seg[0]), get_num_segments(seg[1])
-        loginfo('[wav2ivecs.process_file] Processing speech segment from {} ms to {} ms ...'.format(start, end))
         w = get_ivec(fea[seg[0]:seg[1] + 1], numg, dimf, gmm_model, ubm_means, ubm_norm, v, mvvt)
         if w is None:
             continue
         ivec_set.add(w, start, end)
     Tools.mkdir_p(os.path.join(out_dir, os.path.dirname(file_name)))
     ivec_set.save(os.path.join(out_dir, '{}.pkl'.format(file_name)))
+
+
+def _process_files(args):
+    """TODO"""
+    fns, ubm_file, v_file, kwargs = args
+    models = init(ubm_file, v_file)
+    for fn in fns:
+        process_file(file_name=fn, model=models, **kwargs)
+
+
+def process_files(fns, wav_dir, vad_dir, out_dir, ubm_file, v_file, min_size,
+                  max_size, tolerance, wav_suffix='.wav', vad_suffix='.lab.gz',
+                  n_jobs=1):
+    """TODO"""
+    kwargs = dict(wav_dir=wav_dir, vad_dir=vad_dir, out_dir=out_dir,
+                  min_size=min_size, max_size=max_size,
+                  wav_suffix=wav_suffix, vad_suffix=vad_suffix,
+                  tolerance=tolerance)
+    if n_jobs == 1:
+        res = [_process_files((fns, ubm_file, v_file, kwargs))]
+    else:
+        pool = multiprocessing.Pool(n_jobs)
+        res = pool.map(_process_files, ((part, ubm_file, v_file, kwargs)
+                       for part in partition(fns, n_jobs)))
+    
 
 
 def get_segments(vad, min_size, max_size, tolerance):
@@ -202,16 +227,12 @@ def main(argv):
     parser.set_defaults(vad_tolerance=5)
     args = parser.parse_args()
 
-    models = init(args.ubm_file, args.v_file)
-    loginfo('[wav2ivecs.main] Setting {} processor cores for the MKL library ...'.format(args.num_cores))
-    set_mkl(args.num_cores)
+    loginfo('[wav2ivecs.main] Using {} threads...'.format(args.num_cores))
     files = [line.rstrip('\n') for line in open(args.input_list)]
-    for f in files:
-        process_file(args.audio_dir, args.vad_dir, args.out_dir, f, models,
-                     args.min_window_size, args.max_window_size,
-                     args.vad_tolerance, wav_suffix=args.wav_suffix,
-                     vad_suffix=args.vad_suffix)
-
+    process_files(
+        files, args.audio_dir, args.vad_dir, args.out_dir, args.ubm_file,
+        args.v_file, args.min_window_size, args.max_window_size,
+        args.vad_tolerance, args.wav_suffix, args.vad_suffix, args.num_cores)
     return 0
 
 
