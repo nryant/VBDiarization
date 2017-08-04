@@ -68,7 +68,7 @@ class Diarization(Normalization):
             size = ivecset.size()
             if size > 0:
                 if ivecset.num_speakers is not None:
-                    num_speakers = ivecset.num_speakers
+                    num_speakers = min(ivecset.num_speakers, size)
                     sklearnkmeans = sklearnKMeans(n_clusters=num_speakers).fit(ivecs)
                     centroids = KMeans(sklearnkmeans.cluster_centers_, num_speakers, self.plda).fit(ivecs)
                 else:
