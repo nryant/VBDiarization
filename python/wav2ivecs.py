@@ -98,7 +98,7 @@ def process_files(fns, wav_dir, vad_dir, out_dir, ubm_file, v_file, min_size,
         pool = multiprocessing.Pool(n_jobs)
         res = pool.map(_process_files, ((part, ubm_file, v_file, kwargs)
                        for part in partition(fns, n_jobs)))
-    
+
 
 
 def get_segments(vad, min_size, max_size, tolerance):
@@ -196,47 +196,66 @@ def get_clusters(vad, min_size, tolerance=10):
     return clusters
 
 
-def main(argv):
-    parser = argparse.ArgumentParser('Extract i-vectors used for diarization from audio wav files.')
-    parser.add_argument('-l', '--input-list', help='list of input files without suffix',
-                        action='store', dest='input_list', type=str, required=True)
-    parser.add_argument('--audio-dir', help='directory with audio files in .wav format - 8000Hz, 16bit-s, 1c',
-                        action='store', dest='audio_dir', type=str, required=True)
-    parser.add_argument('-wav-suffix', help='wav file suffix',
-                        action='store', dest='wav_suffix', type=str, required=False)
-    parser.add_argument('--vad-dir', help='directory with lab files - Voice/Speech activity detection',
-                        action='store', dest='vad_dir', type=str, required=False)
-    parser.add_argument('-vad-suffix', help='Voice Activity Detector file suffix',
-                        action='store', dest='vad_suffix', type=str, required=False)
-    parser.add_argument('--out-dir', help='output directory for storing i-vectors',
-                        action='store', dest='out_dir', type=str, required=True)
-    parser.add_argument('--ubm-file', help='Universal Background Model file',
-                        action='store', dest='ubm_file', type=str, required=True)
-    parser.add_argument('--v-file', help='V Model file',
-                        action='store', dest='v_file', type=str, required=True)
-    parser.add_argument('--min-window-size', help='minimal window size for extracting i-vector in ms',
-                        action='store', dest='min_window_size', type=int, required=False)
-    parser.add_argument('--max-window-size', help='maximal window size for extracting i-vector in ms',
-                        action='store', dest='max_window_size', type=int, required=False)
-    parser.add_argument('--vad-tolerance', help='tolerance critetion for ignoring frames of silence',
-                        action='store', dest='vad_tolerance', type=int, required=False)
-    parser.add_argument('-j', '--num-cores', help='number of processor cores to use',
-                        action='store', dest='num_cores', type=int, required=False)
-    parser.set_defaults(num_cores=multiprocessing.cpu_count())
-    parser.set_defaults(wav_suffix='.wav')
-    parser.set_defaults(vad_suffix='.lab.gz')
-    parser.set_defaults(min_window_size=1000)
-    parser.set_defaults(max_window_size=2000)
-    parser.set_defaults(vad_tolerance=5)
-    args = parser.parse_args()
+# TODO:
+# - move code in wav2ivec to other files and remove dependency on that script
+# - consider making required non-positional arguments into positional arguments
+# - allow float input for min/max window size
 
-    loginfo('[wav2ivecs.main] Using {} threads...'.format(args.num_cores))
-    files = [line.rstrip('\n') for line in open(args.input_list)]
+
+def main(argv):
+    parser = argparse.ArgumentParser(
+        description='Extract i-vectors used for diarization from audio wav files.',
+        add_help=True, usage='%(prog)s [options]')
+    parser.add_argument(
+        '-l', '--input-list', dest='input_list', nargs=None, required=True,
+        help='list of input files without suffix')
+    parser.add_argument(
+        '--audio-dir', dest='audio_dir', required=True,
+        help='directory with audio files')
+    parser.add_argument(
+        '--audio-ext', dest='audio_ext', nargs=None, default='.wav',
+        help='audio file extension (Default: %(default)s)')
+    parser.add_argument(
+        '--sad-dir', dest='sad_dir', nargs=None, required=True,
+        help='directory with SAD label files')
+    parser.add_argument(
+        '--sad-ext', dest='sad_ext', nargs=None, default='.lab.gz',
+        help='label file extension (Default: %(default)s)')
+    parser.add_argument(
+        '--out-dir', dest='out_dir', nargs=None, required=True,
+        help='output directory for i-vectors')
+    parser.add_argument(
+        '--ubm-file', dest='ubm_file', nargs=None, required=True,
+        help='Universal Background Model file')
+    parser.add_argument(
+        '--v-file', dest='v_file', nargs=None, required=True,
+        help='V Model file')
+    parser.add_argument(
+        '--min-window-size', dest='min_window_size', type=int, nargs=None, default=1000,
+        help='minimal window size (ms) for i-vector extraction (Default: %(default)s)')
+    parser.add_argument(
+        '--max-window-size', dest='max_window_size', type=int, nargs=None, default=2000,
+        help='maximal window size (ms) for i-vector extraction (Default: %(default)s)')
+    parser.add_argument(
+        '--sad-tolerance', dest='sad_tolerance', type=int, nargs=None, default=5,
+        help='silence tolerance in ms (Default: %(default)s ms)')
+    parser.add_argument(
+        '-j', '--num-threads', dest='num_threads', type=int, nargs=None, default=1,
+        help='number of threads to use (Default: %(default)s)')
+    if len(argv) == 0:
+        parser.print_help()
+        sys.exit(1)
+    args = parser.parse_args()
+    
+    # Load script file.
+    with open(args.input_list, 'rb') as f:
+        files = [line.rstrip('\n') for line in f]
+
+    # Extract i-vectors in parallel.
     process_files(
-        files, args.audio_dir, args.vad_dir, args.out_dir, args.ubm_file,
+        files, args.audio_dir, args.sad_dir, args.out_dir, args.ubm_file,
         args.v_file, args.min_window_size, args.max_window_size,
-        args.vad_tolerance, args.wav_suffix, args.vad_suffix, args.num_cores)
-    return 0
+        args.sad_tolerance, args.audio_ext, args.sad_ext, args.num_threads)
 
 
 if __name__ == '__main__':
