@@ -6,8 +6,6 @@ import math
 import multiprocessing
 import sys
 
-from scipy import signal
-
 from lib.audio import af_to_array, get_sr
 from lib import features
 from lib.raw2ivec import *
@@ -36,15 +34,21 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
         :type min_size: int
         :param max_size: maximal size of window in ms
         :type max_size: int
-        :param tolerance: accept given number of frames as speech even when it is marked as silence
+        :param tolerance: accept given number of frames as speech even when it
+                          is marked as silence
         :type tolerance: int
         :param wav_suffix: suffix of wav files
         :type wav_suffix: str
         :param vad_suffix: suffix of vad files
         :type vad_suffix
     """
-    loginfo('[wav2ivecs.process_file] Processing file {} ...'.format(file_name))
-    ubm_weights, ubm_means, ubm_covs, ubm_norm, gmm_model, numg, dimf, v, mvvt = model
+    loginfo('[wav2ivecs.process_file] Processing file {} '
+            '...'.format(file_name))
+    _, ubm_means, _, ubm_norm, gmm_model, numg, dimf, v, mvvt = model
+    ubm_means = model[1]
+    ubm_norm = model[3]
+    gmm_model = model[4]
+    
     if len(file_name.split()) > 1:
         file_name = file_name.split()[0]
     wav = os.path.join(wav_dir, file_name) + wav_suffix
@@ -57,18 +61,20 @@ def process_file(wav_dir, vad_dir, out_dir, file_name, model, min_size,
                    'The input file is expected to be in 8000 Hz, got {} Hz '
                    'instead, resampling.'.format(rate))
     rate, sig = af_to_array(wav, target_sr=8000)
-    if ADDDITHER > 0.0:
+    if ADDDITHER > 0.0: # TODO: Where is this defined?
         #loginfo('[wav2ivecs.process_file] Adding dither ...')
         sig = features.add_dither(sig, ADDDITHER)
 
     fea = get_mfccs(sig)
-    vad, n_regions, n_frames = get_vad(vad_dir, file_name, vad_suffix, sig, fea)
+    vad, n_regions, n_frames = get_vad(
+        vad_dir, file_name, vad_suffix, sig, fea)
 
     ivec_set = IvecSet()
     ivec_set.name = file_name
     for seg in get_segments(vad, min_size, max_size, tolerance):
         start, end = get_num_segments(seg[0]), get_num_segments(seg[1])
-        w = get_ivec(fea[seg[0]:seg[1] + 1], numg, dimf, gmm_model, ubm_means, ubm_norm, v, mvvt)
+        w = get_ivec(fea[seg[0]:seg[1] + 1], numg, dimf, gmm_model, ubm_means,
+                     ubm_norm, v, mvvt)
         if w is None:
             continue
         ivec_set.add(w, start, end)
@@ -110,7 +116,8 @@ def get_segments(vad, min_size, max_size, tolerance):
         :type min_size: int
         :param max_size: maximal size of window in ms
         :type max_size: int
-        :param tolerance: accept given number of frames as speech even when it is marked as silence
+        :param tolerance: accept given number of frames as speech even when it
+                          is marked as silence
         :type tolerance: int
         :returns: clustered segments
         :rtype: list
@@ -141,9 +148,11 @@ def split_segment(segment, max_size):
     num_segments = int(math.ceil(size / max_size))
     size_segment = size / num_segments
     for ii in range(num_segments):
-        yield (segment[0] + ii * size_segment, segment[0] + (ii + 1) * size_segment)
+        yield (segment[0] + ii * size_segment,
+               segment[0] + (ii + 1) * size_segment)
 
-
+        
+# TODO: Where are these constants defined?
 def get_num_frames(n):
     """ Get number of frames from ms.
 
@@ -163,7 +172,8 @@ def get_num_segments(n):
         :returns: number of ms
         :rtype: int
     """
-    return int(n * (TARGETRATE / 10000) - (TARGETRATE / 10000) + (WINDOWSIZE / 10000))
+    return int(n * (TARGETRATE / 10000) - (TARGETRATE / 10000) +
+               (WINDOWSIZE / 10000))
 
 
 def get_clusters(vad, min_size, tolerance=10):
@@ -173,7 +183,8 @@ def get_clusters(vad, min_size, tolerance=10):
         :type vad: list
         :param min_size: minimal size of window in ms
         :type min_size: int
-        :param tolerance: accept given number of frames as speech even when it is marked as silence
+        :param tolerance: accept given number of frames as speech even when it
+                          is marked as silence
         :type tolerance: int
         :returns: clustered speech segments
         :rtype: list
@@ -204,7 +215,8 @@ def get_clusters(vad, min_size, tolerance=10):
 
 def main(argv):
     parser = argparse.ArgumentParser(
-        description='Extract i-vectors used for diarization from audio wav files.',
+        description='Extract i-vectors used for diarization from audio wav '
+                    'files.',
         add_help=True, usage='%(prog)s [options]')
     parser.add_argument(
         '-l', '--input-list', dest='input_list', nargs=None, required=True,
@@ -231,22 +243,28 @@ def main(argv):
         '--v-file', dest='v_file', nargs=None, required=True,
         help='V Model file')
     parser.add_argument(
-        '--min-window-size', dest='min_window_size', type=int, nargs=None, default=1000,
-        help='minimal window size (ms) for i-vector extraction (Default: %(default)s ms)')
+        '--min-window-size', dest='min_window_size', type=int, nargs=None,
+        default=1000,
+        help='minimal window size (ms) for i-vector extraction '
+             '(Default: %(default)s ms)')
     parser.add_argument(
-        '--max-window-size', dest='max_window_size', type=int, nargs=None, default=2000,
-        help='maximal window size (ms) for i-vector extraction (Default: %(default)s ms)')
+        '--max-window-size', dest='max_window_size', type=int, nargs=None,
+        default=2000,
+        help='maximal window size (ms) for i-vector extraction '
+             '(Default: %(default)s ms)')
     parser.add_argument(
-        '--sad-tolerance', dest='sad_tolerance', type=int, nargs=None, default=5,
+        '--sad-tolerance', dest='sad_tolerance', type=int, nargs=None,
+        default=5,
         help='silence tolerance in ms (Default: %(default)s ms)')
     parser.add_argument(
-        '-j', '--num-threads', dest='num_threads', type=int, nargs=None, default=1,
+        '-j', '--num-threads', dest='num_threads', type=int, nargs=None,
+        default=1,
         help='number of threads to use (Default: %(default)s)')
     if len(argv) == 0:
         parser.print_help()
         sys.exit(1)
     args = parser.parse_args()
-    
+
     # Load script file.
     with open(args.input_list, 'rb') as f:
         files = [line.rstrip('\n') for line in f]
