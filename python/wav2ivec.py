@@ -5,6 +5,9 @@ import argparse
 from scipy import signal
 
 from lib.audio import af_to_array, get_sr
+from lib import features
+from lib import ivector as iv
+from lib import gmm
 from lib.raw2ivec import *
 from lib.tools import Tools
 from lib.tools import loginfo, logwarning

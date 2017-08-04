@@ -1,12 +1,15 @@
 #! /usr/bin/env python
 from __future__ import print_function
 from __future__ import unicode_literals
-import math
 import argparse
+import math
 import multiprocessing
+import sys
+
 from scipy import signal
 
 from lib.audio import af_to_array, get_sr
+from lib import features
 from lib.raw2ivec import *
 from lib.ivec import IvecSet
 from lib.tools import loginfo, logwarning, Tools
